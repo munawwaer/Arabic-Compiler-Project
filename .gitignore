@@ -1,0 +1,22 @@
+# Visual Studio generated files 
+*.suo 
+*.user 
+*.sln.docstates 
+*.vs/ 
+ 
+# Build results 
+[Dd]ebug/ 
+[Rr]elease/ 
+x64/ 
+bin/ 
+obj/ 
+ 
+# C++ files 
+*.obj 
+*.ilk 
+*.pdb 
+*.tlog 
+*.idb 
+ 
+# C# files 
+*.csproj.user 
