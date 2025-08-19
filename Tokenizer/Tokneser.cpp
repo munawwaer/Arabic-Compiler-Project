@@ -11,6 +11,7 @@
 
 Tokenizer::Tokenizer(const std::wstring& source) : m_source(source) {
     initializeKeywords();
+
 }
 
 void Tokenizer::initializeKeywords() {
@@ -156,6 +157,7 @@ wchar_t Tokenizer::peek(int offset) const {
     return m_source[m_current_pos + offset];
 }
 
+
 wchar_t Tokenizer::advance() {
     return m_source[m_current_pos++];
 }
@@ -178,14 +180,114 @@ void Parser::parse_program() {
     consume(CplTokenType::KEYWORD_PROGRAM, "Expected 'برنامج' keyword");
     consume(CplTokenType::IDENTIFIER, "Expected program name");
     consume(CplTokenType::SEMICOLON, "Expected ';' after program name");
+    parse_declarations_part();
     parse_block();
     consume(CplTokenType::DOT, "Expected '.' at the end of the program");
+
 }
 
 void Parser::parse_block() {
     // Simplified implementation for now
     parse_statement_list();
 }
+
+
+
+
+// =================================================================
+// ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+//   الكود الكامل والجاهز لمهمتك (محمد - جزء التعريفات)
+// ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+// =================================================================
+
+/**
+ * @brief هذه الدالة هي "المنظم" لجزء التعريفات.
+ * تستمر في التحقق من وجود كلمات "ثابت" أو "متغير" وتستدعي الدالة المناسبة.
+ */
+void Parser::parse_declarations_part() {
+    while (currentToken().type == CplTokenType::KEYWORD_CONST ||
+        currentToken().type == CplTokenType::KEYWORD_VAR) {
+
+        if (currentToken().type == CplTokenType::KEYWORD_CONST) {
+            parse_const_declarations();
+        }
+        else if (currentToken().type == CplTokenType::KEYWORD_VAR) {
+            parse_var_declarations();
+        }
+    }
+}
+
+/**
+ * @brief هذه الدالة تحلل كتلة تعريف الثوابت التي تبدأ بكلمة "ثابت".
+ * يمكنها التعامل مع عدة تعريفات للثوابت واحداً تلو الآخر.
+ */
+void Parser::parse_const_declarations() {
+    consume(CplTokenType::KEYWORD_CONST, "Expected 'ثابت'");
+
+    // استمر في التحليل طالما أن الرمز التالي هو اسم لثابت جديد
+    while (currentToken().type == CplTokenType::IDENTIFIER) {
+        consume(CplTokenType::IDENTIFIER, "Expected constant name");
+        consume(CplTokenType::ASSIGN, "Expected '=' for constant definition");
+
+        // يجب أن تكون القيمة إما رقم صحيح، حقيقي، أو نص
+        if (currentToken().type == CplTokenType::INTEGER_LITERAL ||
+            currentToken().type == CplTokenType::REAL_LITERAL ||
+            currentToken().type == CplTokenType::STRING_LITERAL) {
+            advance(); // استهلك القيمة
+        }
+        else {
+            throw SyntaxError("Expected a literal value (number or string) for the constant", currentToken().line);
+        }
+        consume(CplTokenType::SEMICOLON, "Expected ';' after constant definition");
+    }
+}
+
+/**
+ * @brief هذه الدالة تحلل كتلة تعريف المتغيرات التي تبدأ بكلمة "متغير".
+ * يمكنها التعامل مع تعريف عدة متغيرات من نفس النوع في سطر واحد (مثل س, ص: صحيح;).
+ */
+void Parser::parse_var_declarations() {
+    consume(CplTokenType::KEYWORD_VAR, "Expected 'متغير'");
+
+    // استمر في التحليل طالما أننا في بداية سطر تعريف متغيرات جديد
+    while (currentToken().type == CplTokenType::IDENTIFIER) {
+        // استهلك اسم المتغير الأول
+        consume(CplTokenType::IDENTIFIER, "Expected variable name");
+
+        // تحقق من وجود فاصلة (,) لتعريف متغيرات أخرى من نفس النوع
+        while (currentToken().type == CplTokenType::COMMA) {
+            advance(); // استهلك الفاصلة
+            consume(CplTokenType::IDENTIFIER, "Expected another variable name after comma");
+        }
+
+        consume(CplTokenType::COLON, "Expected ':' after variable name(s)");
+
+        parse_type_specifier(); // استدع الدالة المساعدة لتحليل النوع
+
+        consume(CplTokenType::SEMICOLON, "Expected ';' after variable definition");
+    }
+}
+
+/**
+ * @brief دالة مساعدة للتحقق من أنواع البيانات الأساسية.
+ * يمكن تطويرها لاحقاً لتفهم الأنواع المعقدة مثل ARRAY.
+ */
+void Parser::parse_type_specifier() {
+    if (currentToken().type == CplTokenType::TYPE_INTEGER ||
+        currentToken().type == CplTokenType::TYPE_REAL ||
+        currentToken().type == CplTokenType::TYPE_BOOLEAN ||
+        currentToken().type == CplTokenType::TYPE_CHAR ||
+        currentToken().type == CplTokenType::TYPE_STRING) {
+        advance(); // النوع صحيح، استهلكه
+    }
+    else {
+        throw SyntaxError("Expected a valid data type (like 'صحيح', 'حقيقي', etc.)", currentToken().line);
+    }
+}
+
+
+
+
 
 void Parser::parse_statement_list() {
     consume(CplTokenType::L_BRACE, "Expected '{' to start a statement list");

@@ -102,6 +102,12 @@ private:
     // Methods corresponding to grammar rules (Non-terminals)
     void parse_program();
     void parse_block();
+
+    void parse_declarations_part();    // الدالة الرئيسية لجزء التعريفات
+    void parse_const_declarations();   // دالة خاصة بتعريفات الثوابت
+    void parse_var_declarations();     // دالة خاصة بتعريفات المتغيرات
+    void parse_type_specifier();
+
     void parse_statement_list();
     void parse_statement();
     void parse_assignment_statement();
