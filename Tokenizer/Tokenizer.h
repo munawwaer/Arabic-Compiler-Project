@@ -137,6 +137,7 @@ enum class CplTokenType {
     KEYWORD_READ, KEYWORD_WRITE, KEYWORD_IF, KEYWORD_THEN, KEYWORD_ELSE,
     KEYWORD_FOR, KEYWORD_TO, KEYWORD_WHILE, KEYWORD_REPEAT, KEYWORD_UNTIL,
     KEYWORD_BY_VALUE, KEYWORD_BY_REF, TYPE_VOID,
+    
 
     // New keywords for functions
     KEYWORD_FUNCTION,   // دالة
@@ -196,6 +197,14 @@ private:
     wchar_t peek(int offset = 0) const;
     wchar_t advance();
     bool isAtEnd() const;
+
+        // ------------------------------------------------------------
+    // Osama's Task Only — helpers used in the .cpp (declarations)
+    // English: utility helpers for Arabic digits/normalization.
+    // ------------------------------------------------------------
+    static std::wstring normalize_arabic(const std::wstring& in);
+    static bool is_arabic_decimal_separator(wchar_t ch);
+    static bool is_digit_any(wchar_t ch);
 };
 
 // A simple exception class for syntax errors.
@@ -225,6 +234,7 @@ private:
     bool isBuiltinType(CplTokenType t) const;
     void parse_type();
 
+
     // Grammar rules (Non-terminals)
     void parse_program();
     void parse_block();
@@ -241,16 +251,39 @@ private:
     void parse_term();
     void parse_factor();
 
+
+
+    // ------------------------------------------------------------
+// Osama's Task Only — Control Flow & expression ladder
+// English: declarations only; implementations live in .cpp
+// ------------------------------------------------------------
+    void parse_if_stmt();      // if / else if / else
+    void parse_while_stmt();   // while
+    void parse_for_stmt();     // for ("كرر" .. "الى" ..)
+    void parse_repeat_stmt();  // repeat .. until ;
+    void parse_print_statement(); // اطبع "..." | اطبع expr
+
+       // Expression precedence used inside conditions and expressions
+    void parse_logic_or();
+    void parse_logic_and();
+    void parse_equality();
+    void parse_comparison();
+    void parse_addition();
+    void parse_multiplication();
+    void parse_unary();
+    void parse_primary();
     // Functions
     void parse_function_declaration();
     void parse_parameter_list();
     void parse_return_statement();
+
 
     // الاجراء
     void parse_procedure_declaration();
 
     // Variables
     void parse_var_declaration();
+
 
     // Calls
     void parse_function_call_core();     // call without trailing ';' (for expressions)
