@@ -14,44 +14,37 @@ Tokenizer::Tokenizer(const std::wstring& source) : m_source(source) {
 }
 
 void Tokenizer::initializeKeywords() {
-    // نضيف الكلمات المحجوزة بنسختها الأصلية ونُسختها بعد التطبيع لضمان المطابقة حتى مع اختلاف (أ/إ/آ → ا) و(ى → ي)
-    auto add = [&](const wchar_t* lit, CplTokenType t) {
-        std::wstring norm = normalize_arabic(lit);
-        m_keywords[norm] = t;   // النسخة المطبعّة
-        m_keywords[lit] = t;   // النسخة الأصلية
-    };
+    m_keywords[L"برنامج"] = CplTokenType::KEYWORD_PROGRAM;
+    m_keywords[L"ثابت"] = CplTokenType::KEYWORD_CONST;
+    m_keywords[L"نوع"] = CplTokenType::KEYWORD_TYPE;
+    m_keywords[L"متغير"] = CplTokenType::KEYWORD_VAR;
+    m_keywords[L"اجراء"] = CplTokenType::KEYWORD_PROCEDURE;
+    m_keywords[L"اقرا"] = CplTokenType::KEYWORD_READ;
+    m_keywords[L"اطبع"] = CplTokenType::KEYWORD_WRITE;
+    m_keywords[L"اذا"] = CplTokenType::KEYWORD_IF;
+    m_keywords[L"فان"] = CplTokenType::KEYWORD_THEN;
+    m_keywords[L"والا"] = CplTokenType::KEYWORD_ELSE;
+    m_keywords[L"صحيح"] = CplTokenType::TYPE_INTEGER;
+    m_keywords[L"حقيقي"] = CplTokenType::TYPE_REAL;
 
-    // الأساسيات
-    add(L"برنامج", CplTokenType::KEYWORD_PROGRAM);
-    add(L"ثابت", CplTokenType::KEYWORD_CONST);
-    add(L"نوع", CplTokenType::KEYWORD_TYPE);
-    add(L"متغير", CplTokenType::KEYWORD_VAR);
-    add(L"اجراء", CplTokenType::KEYWORD_PROCEDURE);
-    add(L"اقرا", CplTokenType::KEYWORD_READ);
-    add(L"اطبع", CplTokenType::KEYWORD_WRITE);
-    add(L"اذا", CplTokenType::KEYWORD_IF);
-    add(L"فان", CplTokenType::KEYWORD_THEN);
-    add(L"والا", CplTokenType::KEYWORD_ELSE);
-    add(L"صحيح", CplTokenType::TYPE_INTEGER);
-    add(L"حقيقي", CplTokenType::TYPE_REAL);
+    // Keywords from the other branch
+    m_keywords[L"دالة"] = CplTokenType::KEYWORD_FUNCTION;
+    m_keywords[L"ارجع"] = CplTokenType::KEYWORD_RETURN;
+    m_keywords[L"بلا"] = CplTokenType::TYPE_VOID;
 
-    // الدوال والإرجاع
-    add(L"دالة", CplTokenType::KEYWORD_FUNCTION);
-    add(L"ارجع", CplTokenType::KEYWORD_RETURN);
-    add(L"بلا", CplTokenType::TYPE_VOID);
 
-    // جمل التحكم (حسب طلبك: طالما/كرر/الى/اعد/حتى)
-    add(L"طالما", CplTokenType::KEYWORD_WHILE);   // while
-    add(L"كرر", CplTokenType::KEYWORD_FOR);     // for
-    add(L"الى", CplTokenType::KEYWORD_TO);      // to
-    add(L"الي", CplTokenType::KEYWORD_TO);      // احتياط بسبب التطبيع (ى→ي)
-    add(L"اعد", CplTokenType::KEYWORD_REPEAT);  // repeat
-    add(L"حتى", CplTokenType::KEYWORD_UNTIL);   // until
 
-    // أنواع مضافة
-    add(L"منطقي", CplTokenType::TYPE_BOOLEAN);
-    add(L"محرف", CplTokenType::TYPE_CHAR);
-    add(L"نصي", CplTokenType::TYPE_STRING);
+    // ------- Osama additions: control-flow & extra builtin types (tokenization) -------
+    m_keywords[L"بينما"] = CplTokenType::KEYWORD_WHILE;      // Osama: add Arabic 'while' keyword
+    m_keywords[L"كرر"] = CplTokenType::KEYWORD_FOR;        // Osama: add Arabic 'for' keyword
+    m_keywords[L"الى"] = CplTokenType::KEYWORD_TO;         // Osama: add Arabic 'to' (for loops)
+    m_keywords[L"اعِد"] = CplTokenType::KEYWORD_REPEAT;     // Osama: add Arabic 'repeat' keyword
+    m_keywords[L"حتى"] = CplTokenType::KEYWORD_UNTIL;      // Osama: add Arabic 'until' keyword
+
+    m_keywords[L"منطقي"] = CplTokenType::TYPE_BOOLEAN;       // Osama: add builtin type 'boolean'
+    m_keywords[L"محرف"] = CplTokenType::TYPE_CHAR;          // Osama: add builtin type 'char'
+    m_keywords[L"نصي"] = CplTokenType::TYPE_STRING;        // Osama: add builtin type 'string'
+    // -------------------------------------------------------------------------------
 }
 
 std::vector<CplToken> Tokenizer::tokenizeAll() {
@@ -73,7 +66,7 @@ CplToken Tokenizer::getNextToken() {
     if (iswdigit(c)) return readNumber();
     if (c == L'"') return readStringLiteral();
 
-    // معاملات من حرفين
+    // Two-character operators
     if (peek(1) != L'\0') {
         std::wstring two_char_op;
         two_char_op += c;
@@ -86,7 +79,7 @@ CplToken Tokenizer::getNextToken() {
         if (two_char_op == L"||") { advance(); advance(); return { CplTokenType::LOGICAL_OR, two_char_op, m_current_line }; }
     }
 
-    // معاملات/ترقيم من حرف واحد
+    // Single-character operators and punctuation
     advance();
     switch (c) {
     case L'=': return { CplTokenType::ASSIGN, L"=", m_current_line };
@@ -158,7 +151,7 @@ CplToken Tokenizer::readStringLiteral() {
     while (!isAtEnd() && peek() != L'"') {
         str += advance();
     }
-    if (isAtEnd()) {
+    if (isAtEnd()) { // Unterminated string
         return { CplTokenType::UNKNOWN, str, m_current_line };
     }
     advance(); // Consume closing quote
@@ -170,19 +163,22 @@ CplToken Tokenizer::readIdentifierOrKeyword() {
     while (!isAtEnd() && (iswalnum(peek()) || peek() == L'_')) {
         text += advance();
     }
-    // نطبّع ثم نبحث
-    std::wstring key = normalize_arabic(text);
-    auto it = m_keywords.find(key);
+    // (Osama) normalize Arabic forms so keywords match even مع (أ/إ/آ -> ا)
+    std::wstring key = normalize_arabic(text); // (إضافة أسامة)
+    auto it = m_keywords.find(key);            // <-- كان البحث بـ text؛ تم إصلاحه إلى key
     if (it != m_keywords.end()) {
         return { it->second, text, m_current_line };
     }
     return { CplTokenType::IDENTIFIER, text, m_current_line };
 }
 
+
 wchar_t Tokenizer::peek(int offset) const {
     if (m_current_pos + offset >= m_source.length()) return L'\0';
     return m_source[m_current_pos + offset];
 }
+
+
 
 wchar_t Tokenizer::advance() {
     return m_source[m_current_pos++];
@@ -191,8 +187,8 @@ wchar_t Tokenizer::advance() {
 bool Tokenizer::isAtEnd() const {
     return m_current_pos >= m_source.length();
 }
-
-// ---- أدوات مساعدة للتطبيع ----
+// ---- Osama's helpers (impl) ----
+// (إضافة أسامة) دوال خدمة لتوحيد الألف/الياء والتعامل مع أرقام عربية إن لزم.
 std::wstring Tokenizer::normalize_arabic(const std::wstring& in) {
     std::wstring out; out.reserve(in.size());
     for (wchar_t ch : in) {
@@ -205,7 +201,6 @@ std::wstring Tokenizer::normalize_arabic(const std::wstring& in) {
     }
     return out;
 }
-
 bool Tokenizer::is_arabic_decimal_separator(wchar_t ch) { return ch == L'.' || ch == L'\u066B'; }
 bool Tokenizer::is_digit_any(wchar_t ch) { return iswdigit(ch) != 0; }
 
@@ -230,7 +225,7 @@ const CplToken& Parser::lookahead(size_t k) const {
 }
 
 void Parser::advance() {
-    if (m_current_pos < m_tokens.size() - 1) {
+    if (m_current_pos < m_tokens.size() - 1) { // Prevent advancing past EOF
         m_current_pos++;
     }
 }
@@ -254,6 +249,7 @@ bool Parser::isBuiltinType(CplTokenType t) const {
 }
 
 void Parser::parse_type() {
+    // Accept built-in types OR user-defined type identifiers
     if (isBuiltinType(currentToken().type) || currentToken().type == CplTokenType::IDENTIFIER) {
         advance();
     }
@@ -266,7 +262,7 @@ void Parser::parse_program() {
     consume(CplTokenType::KEYWORD_PROGRAM, "Expected 'برنامج' keyword");
     consume(CplTokenType::IDENTIFIER, "Expected program name");
     consume(CplTokenType::SEMICOLON, "Expected ';' after program name");
-    parse_declarations_part();
+    parse_declarations_part(); // Your declarations part
     parse_block();
     consume(CplTokenType::DOT, "Expected '.' at the end of the program");
 }
@@ -275,15 +271,16 @@ void Parser::parse_block() {
     parse_statement_list();
 }
 
-// قسم التصريحات (ثابت/متغير)
+// Your declarations parsing functions
 void Parser::parse_declarations_part() {
     while (currentToken().type == CplTokenType::KEYWORD_CONST ||
         currentToken().type == CplTokenType::KEYWORD_VAR) {
+
         if (currentToken().type == CplTokenType::KEYWORD_CONST) {
             parse_const_declarations();
         }
         else if (currentToken().type == CplTokenType::KEYWORD_VAR) {
-            parse_var_declaration();
+            parse_var_declarations();
         }
     }
 }
@@ -305,7 +302,7 @@ void Parser::parse_const_declarations() {
     }
 }
 
-void Parser::parse_var_declaration() {
+void Parser::parse_var_declarations() {
     consume(CplTokenType::KEYWORD_VAR, "Expected 'متغير'");
     while (currentToken().type == CplTokenType::IDENTIFIER) {
         consume(CplTokenType::IDENTIFIER, "Expected variable name");
@@ -328,7 +325,7 @@ void Parser::parse_type_specifier() {
     }
 }
 
-// قائمة التعليمات
+// Teammate's functions and statements parsing
 void Parser::parse_statement_list() {
     consume(CplTokenType::L_BRACE, "Expected '{' to start a statement list");
     while (currentToken().type != CplTokenType::R_BRACE && currentToken().type != CplTokenType::END_OF_FILE) {
@@ -359,23 +356,23 @@ void Parser::parse_statement() {
         parse_return_statement();
     }
     else if (currentToken().type == CplTokenType::KEYWORD_VAR) {
-        parse_var_declaration();
+        parse_var_declaration(); // consumes trailing ';'
     }
     else if (currentToken().type == CplTokenType::KEYWORD_WRITE) {
-        parse_print_statement();
+        parse_print_statement();        // (Osama) اطبع "نص"; أو اطبع تعبير;
         consume(CplTokenType::SEMICOLON, "Expected ';' after statement");
     }
     else if (currentToken().type == CplTokenType::KEYWORD_IF) {
-        parse_if_stmt();
+        parse_if_stmt();                // (Osama) if / else if / else
     }
     else if (currentToken().type == CplTokenType::KEYWORD_WHILE) {
-        parse_while_stmt(); // "طالما"
+        parse_while_stmt();             // (Osama) while
     }
     else if (currentToken().type == CplTokenType::KEYWORD_FOR) {
-        parse_for_stmt();   // "كرر .. الى .."
+        parse_for_stmt();               // (Osama) for "كرر .. الى .."
     }
     else if (currentToken().type == CplTokenType::KEYWORD_REPEAT) {
-        parse_repeat_stmt(); // "اعد .. حتى" (وتتطلب ';')
+        parse_repeat_stmt();            // (Osama) repeat .. until ;
     }
     else if (currentToken().type == CplTokenType::L_BRACE) {
         parse_block();
@@ -384,6 +381,7 @@ void Parser::parse_statement() {
         throw SyntaxError("Invalid statement", currentToken().line);
     }
 }
+
 
 void Parser::parse_assignment_statement() {
     consume(CplTokenType::IDENTIFIER, "Expected identifier");
@@ -400,7 +398,7 @@ void Parser::parse_procedure_declaration() {
     }
     consume(CplTokenType::R_PAREN, "Expected ')'");
     consume(CplTokenType::SEMICOLON, "Expected ';'");
-    parse_block();
+    parse_block(); // Procedure body
 }
 
 void Parser::parse_function_declaration() {
@@ -421,7 +419,7 @@ void Parser::parse_parameter_list() {
     parse_type();
     consume(CplTokenType::IDENTIFIER, "Expected parameter name");
     while (currentToken().type == CplTokenType::COMMA) {
-        advance();
+        advance(); // consume ','
         parse_type();
         consume(CplTokenType::IDENTIFIER, "Expected parameter name");
     }
@@ -451,145 +449,209 @@ void Parser::parse_function_call_core() {
     consume(CplTokenType::R_PAREN, "Expected ')'");
 }
 
-// ====================== سُلّم أسبقيات التعابير ======================
-void Parser::parse_expression() { parse_logic_or(); }
-
-void Parser::parse_logic_or() {
-    parse_logic_and();
-    while (currentToken().type == CplTokenType::LOGICAL_OR) { advance(); parse_logic_and(); }
+void Parser::parse_expression() {
+    // Osama: أعلى مستوى — OR
+    parse_logic_or();
 }
 
-void Parser::parse_logic_and() {
-    parse_equality();
-    while (currentToken().type == CplTokenType::LOGICAL_AND) { advance(); parse_equality(); }
-}
 
-void Parser::parse_equality() {
-    parse_comparison();
-    while (currentToken().type == CplTokenType::EQUAL || currentToken().type == CplTokenType::NOT_EQUAL) {
+void Parser::parse_term() {
+    parse_factor();
+    while (currentToken().type == CplTokenType::MULTIPLY || currentToken().type == CplTokenType::DIVIDE ||
+        currentToken().type == CplTokenType::MODULO || currentToken().type == CplTokenType::LOGICAL_AND) {
         advance();
-        parse_comparison();
+        parse_factor();
     }
 }
 
-void Parser::parse_comparison() {
-    parse_addition();
-    while (currentToken().type == CplTokenType::LESS || currentToken().type == CplTokenType::LESS_EQUAL ||
-        currentToken().type == CplTokenType::GREATER || currentToken().type == CplTokenType::GREATER_EQUAL) {
-        advance();
-        parse_addition();
-    }
-}
-
-void Parser::parse_addition() {
-    parse_multiplication();
-    while (currentToken().type == CplTokenType::PLUS || currentToken().type == CplTokenType::MINUS) {
-        advance();
-        parse_multiplication();
-    }
-}
-
-void Parser::parse_multiplication() {
-    parse_unary();
-    while (currentToken().type == CplTokenType::MULTIPLY || currentToken().type == CplTokenType::DIVIDE || currentToken().type == CplTokenType::MODULO) {
-        advance();
-        parse_unary();
-    }
-}
-
-void Parser::parse_unary() {
-    if (currentToken().type == CplTokenType::LOG_NOT || currentToken().type == CplTokenType::MINUS) {
-        advance();
-        parse_unary();
-        return;
-    }
-    parse_primary();
-}
-
-void Parser::parse_primary() {
-    switch (currentToken().type) {
-    case CplTokenType::IDENTIFIER: {
+void Parser::parse_factor() {
+    if (currentToken().type == CplTokenType::IDENTIFIER) {
         if (lookahead().type == CplTokenType::L_PAREN) {
             parse_function_call_core();
         }
         else {
             advance();
         }
-        return;
     }
-    case CplTokenType::INTEGER_LITERAL:
-    case CplTokenType::REAL_LITERAL:
-    case CplTokenType::STRING_LITERAL:
+    else if (currentToken().type == CplTokenType::INTEGER_LITERAL ||
+        currentToken().type == CplTokenType::REAL_LITERAL ||
+        currentToken().type == CplTokenType::STRING_LITERAL) {
         advance();
-        return;
-    case CplTokenType::L_PAREN: {
+    }
+    else if (currentToken().type == CplTokenType::L_PAREN) {
         advance();
         parse_expression();
         consume(CplTokenType::R_PAREN, "Expected ')'");
-        return;
     }
-    default:
+    else if (currentToken().type == CplTokenType::MINUS || currentToken().type == CplTokenType::LOG_NOT) {
+        advance();
+        parse_factor();
+    }
+    else {
         throw SyntaxError("Invalid factor in expression", currentToken().line);
     }
 }
 
-// ====== جمل التحكم ======
-void Parser::parse_if_stmt() {
-    consume(CplTokenType::KEYWORD_IF, "Expected 'اذا'");
-    parse_expression();
-    consume(CplTokenType::KEYWORD_THEN, "Expected 'فان'");
-    parse_statement();
 
-    while (currentToken().type == CplTokenType::KEYWORD_ELSE) {
-        advance();
-        if (currentToken().type == CplTokenType::KEYWORD_IF) {
-            advance();
-            parse_expression();
-            consume(CplTokenType::KEYWORD_THEN, "Expected 'فان'");
-            parse_statement();
+// ====================== Osama: Expression Precedence Ladder ======================
+
+void Parser::parse_logic_or() {
+    parse_logic_and();                                         // Osama: parse left operand at AND level
+    while (currentToken().type == CplTokenType::LOGICAL_OR) {  // Osama: while there's "||" chained
+        advance();                                             // Osama: consume "||"
+        parse_logic_and();                                     // Osama: parse the next right operand
+    }
+}
+
+void Parser::parse_logic_and() {
+    parse_equality();                                          // Osama: go one level down to equality
+    while (currentToken().type == CplTokenType::LOGICAL_AND) { // Osama: while there's "&&" chained
+        advance();                                             // Osama: consume "&&"
+        parse_equality();                                      // Osama: parse the next right operand
+    }
+}
+
+void Parser::parse_equality() {
+    parse_comparison();                                        // Osama: lower to comparison level
+    while (currentToken().type == CplTokenType::EQUAL          // Osama: "=="
+        || currentToken().type == CplTokenType::NOT_EQUAL) {   // Osama: "!="
+        advance();                                             // Osama: consume == / !=
+        parse_comparison();                                    // Osama: parse right operand
+    }
+}
+
+void Parser::parse_comparison() {
+    parse_addition();                                          // Osama: lower to +/-
+    while (currentToken().type == CplTokenType::LESS           // Osama: "<"
+        || currentToken().type == CplTokenType::LESS_EQUAL     // Osama: "<="
+        || currentToken().type == CplTokenType::GREATER        // Osama: ">"
+        || currentToken().type == CplTokenType::GREATER_EQUAL) // Osama: ">="
+    {
+        advance();                                             // Osama: consume comparator
+        parse_addition();                                      // Osama: parse right operand
+    }
+}
+
+void Parser::parse_addition() {
+    parse_multiplication();                                    // Osama: lower to */%
+    while (currentToken().type == CplTokenType::PLUS           // Osama: "+"
+        || currentToken().type == CplTokenType::MINUS) {       // Osama: "-"
+        advance();                                             // Osama: consume + / -
+        parse_multiplication();                                // Osama: parse the next term
+    }
+}
+
+void Parser::parse_multiplication() {
+    parse_unary();                                             // Osama: lower to unary
+    while (currentToken().type == CplTokenType::MULTIPLY       // Osama: "*"
+        || currentToken().type == CplTokenType::DIVIDE         // Osama: "/"
+        || currentToken().type == CplTokenType::MODULO) {      // Osama: "%"
+        advance();                                             // Osama: consume operator
+        parse_unary();                                         // Osama: parse the next factor
+    }
+}
+
+void Parser::parse_unary() {
+    if (currentToken().type == CplTokenType::LOG_NOT           // Osama: "!"
+        || currentToken().type == CplTokenType::MINUS) {       // Osama: unary "-"
+        advance();                                             // Osama: consume unary op
+        parse_unary();                                         // Osama: support chains like !!-x
+        return;                                                // Osama: done with this unary chain
+    }
+    parse_primary();                                           // Osama: otherwise → primary unit
+}
+
+void Parser::parse_primary() {
+    switch (currentToken().type) {
+    case CplTokenType::IDENTIFIER: {                       // Osama: identifier (var or function call)
+        if (lookahead().type == CplTokenType::L_PAREN) {   // Osama: IDENT "(" → a function call
+            parse_function_call_core();                    // Osama: parse call inside expression
         }
         else {
-            parse_statement();
-            break;
+            advance();                                     // Osama: plain variable/identifier
+        }
+        return;
+    }
+    case CplTokenType::INTEGER_LITERAL:                    // Osama: numeric literal (int)
+    case CplTokenType::REAL_LITERAL:                       // Osama: numeric literal (real)
+    case CplTokenType::STRING_LITERAL:                     // Osama: string literal
+        advance();                                         // Osama: consume the literal
+        return;
+    case CplTokenType::L_PAREN: {                          // Osama: parenthesized "( ... )"
+        advance();                                         // Osama: consume '('
+        parse_expression();                                // Osama: parse inner expression
+        consume(CplTokenType::R_PAREN, "Expected ')'");    // Osama: require closing ')'
+        return;
+    }
+    default:
+        throw SyntaxError("Invalid factor in expression",  // Osama: unexpected token at primary
+            currentToken().line);
+    }
+}
+
+
+// ====== Control-flow statements (Osama) ======
+// (إضافة أسامة) جمل التحكم: اذا/فان/والا – بينما – كرر/الى – أعد/حتى
+
+
+void Parser::parse_if_stmt() {                                        // Osama: if/then/else chain
+    consume(CplTokenType::KEYWORD_IF, "Expected 'اذا'");            // Osama
+    parse_expression();                                               // Osama: condition
+    consume(CplTokenType::KEYWORD_THEN, "Expected 'فان'");            // Osama
+    parse_statement();                                                // Osama: then-branch
+
+    while (currentToken().type == CplTokenType::KEYWORD_ELSE) {       // Osama: handle else / else if
+        advance();                                                    // Osama: consume 'والا'
+        if (currentToken().type == CplTokenType::KEYWORD_IF) {        // Osama: else-if
+            advance();                                                // Osama: consume 'اذا'
+            parse_expression();                                       // Osama: new condition
+            consume(CplTokenType::KEYWORD_THEN, "Expected 'فان'");    // Osama
+            parse_statement();                                        // Osama: else-if body
+        }
+        else {
+            parse_statement();                                        // Osama: plain else body
+            break;                                                    // Osama: end chain
         }
     }
 }
 
-void Parser::parse_while_stmt() { // طالما
-    consume(CplTokenType::KEYWORD_WHILE, "Expected 'طالما'");
-    parse_expression();
-    parse_statement();
+void Parser::parse_while_stmt() {                                     // Osama: while-loop
+    consume(CplTokenType::KEYWORD_WHILE, "Expected 'بينما'");         // Osama
+    parse_expression();                                               // Osama: loop condition
+    parse_statement();                                                // Osama: single stmt or { block }
 }
 
-void Parser::parse_for_stmt() { // كرر ع = بداية الى نهاية { جسم }
-    consume(CplTokenType::KEYWORD_FOR, "Expected 'كرر'");
-    consume(CplTokenType::IDENTIFIER, "Expected loop variable");
-    consume(CplTokenType::ASSIGN, "Expected '=' after loop variable");
-    parse_expression();
-    consume(CplTokenType::KEYWORD_TO, "Expected 'الى'"); // أيضاً تقبل 'الي' بسبب التطبيع/الإضافة
-    parse_expression();
-    parse_statement();
+void Parser::parse_for_stmt() {                                       // Osama: for i = a الى b do stmt
+    consume(CplTokenType::KEYWORD_FOR, "Expected 'كرر'");             // Osama
+    consume(CplTokenType::IDENTIFIER, "Expected loop variable");     // Osama: loop var
+    consume(CplTokenType::ASSIGN, "Expected '=' after loop variable"); // Osama
+    parse_expression();                                               // Osama: start expr
+    consume(CplTokenType::KEYWORD_TO, "Expected 'الى'");             // Osama: 'to' keyword
+    parse_expression();                                               // Osama: end expr
+    parse_statement();                                                // Osama: loop body
 }
 
-void Parser::parse_repeat_stmt() { // اعد { .. } حتى شرط ;
-    consume(CplTokenType::KEYWORD_REPEAT, "Expected 'اعد'");
-    if (currentToken().type == CplTokenType::L_BRACE)
-        parse_block();
+void Parser::parse_repeat_stmt() {                                    // Osama: repeat ... until cond ;
+    consume(CplTokenType::KEYWORD_REPEAT, "Expected 'اعِد'");         // Osama
+    if (currentToken().type == CplTokenType::L_BRACE)                 // Osama: allow { ... } block
+        parse_block();                                                // Osama
     else
-        parse_statement();
-    consume(CplTokenType::KEYWORD_UNTIL, "Expected 'حتى'");
-    parse_expression();
-    consume(CplTokenType::SEMICOLON, "Expected ';' after 'حتى' condition");
+        parse_statement();                                            // Osama: single stmt
+    consume(CplTokenType::KEYWORD_UNTIL, "Expected 'حتى'");           // Osama
+    parse_expression();                                               // Osama: exit condition
+    consume(CplTokenType::SEMICOLON, "Expected ';' after 'حتى' condition"); // Osama
 }
+// -----------------------------------------------------------------------
 
-// ====== اطبع ======
+// ====== اطبع (Osama) ======
+// (إضافة أسامة) دعم جملة:  اطبع "نص";  أو  اطبع تعبير;
 void Parser::parse_print_statement() {
     consume(CplTokenType::KEYWORD_WRITE, "Expected 'اطبع'");
     if (currentToken().type == CplTokenType::STRING_LITERAL) {
-        advance();
+        advance(); // "النص" (Osama)
     }
     else {
-        parse_expression();
+        parse_expression(); // اطبع x+1 (Osama)
     }
 }
 

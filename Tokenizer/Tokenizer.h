@@ -282,7 +282,7 @@ private:
     void parse_procedure_declaration();
 
     // Variables
-    void parse_var_declaration();
+     void parse_var_declaration();
 
 
     // Calls
